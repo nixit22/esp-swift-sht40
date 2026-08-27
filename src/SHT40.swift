@@ -43,7 +43,7 @@ public struct SHT40: ~Copyable {
         }
     }
 
-    public func setup() throws(Error) {
+    public func setup() throws(PlatformError) {
         log.d("Setting up SHT40")
         // Datasheet power-up time (tPU) is 1ms max, measured from VDD crossing
         // VPOR — IDF boot and bus init already take far longer than that before
@@ -58,12 +58,12 @@ public struct SHT40: ~Copyable {
         let data = try device.receive(length: 6, timeoutMs: 100)
         guard crc8(data[0...1]) == data[2], crc8(data[3...4]) == data[5] else {
             log.w("SHT40 serial number CRC mismatch")
-            throw Error.espError(ESP_ERR_INVALID_CRC)
+            throw PlatformError.espError(ESP_ERR_INVALID_CRC)
         }
         log.d("SHT40 ready")
     }
 
-    public func reset() throws(Error) {
+    public func reset() throws(PlatformError) {
         log.d("Resetting SHT40")
         try device.transmit(data: [Registers.softReset.rawValue], timeoutMs: 100)
         // Datasheet tSR (soft reset to idle) is 1ms max; round up to a full
@@ -72,7 +72,7 @@ public struct SHT40: ~Copyable {
         try setup()
     }
 
-    public func read() throws(Error) -> (temperature: Float, humidity: Float) {
+    public func read() throws(PlatformError) -> (temperature: Float, humidity: Float) {
         log.d("Reading SHT40 sensor data")
 
         // Trigger a high-repeatability measurement.
@@ -103,7 +103,7 @@ public struct SHT40: ~Copyable {
         }
         guard crc8(data[0...1]) == data[2], crc8(data[3...4]) == data[5] else {
             log.w("SHT40 CRC mismatch")
-            throw Error.espError(ESP_ERR_INVALID_CRC)
+            throw PlatformError.espError(ESP_ERR_INVALID_CRC)
         }
 
         let tRaw = (UInt32(data[0]) << 8) | UInt32(data[1])
