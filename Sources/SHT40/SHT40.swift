@@ -52,9 +52,10 @@ public struct SHT40: ~Copyable {
         // SHT40 has no calibration step. Read the serial number to confirm the
         // sensor is present and responding with valid CRCs.
         try device.transmit(data: [Registers.readSerial.rawValue], timeoutMs: 100)
-        // FreeRTOS tick granularity (10ms in this project) means a 1ms delay
-        // can round down to 0 — round up to a full tick's worth of margin.
-        vTaskDelay(.init(ms: 20))
+        // Task.delay() can return up to two tick periods early (10 ms each at 100 Hz), so a
+        // 20 ms delay only guarantees > 10 ms: enough for the 1 ms and 8.3 ms specs used in
+        // this driver, not for anything above 10 ms.
+        Task.delay(ms: 20)
         let data = try device.receive(length: 6, timeoutMs: 100)
         guard crc8(data[0...1]) == data[2], crc8(data[3...4]) == data[5] else {
             log.w("SHT40 serial number CRC mismatch")
@@ -66,9 +67,8 @@ public struct SHT40: ~Copyable {
     public func reset() throws(PlatformError) {
         log.d("Resetting SHT40")
         try device.transmit(data: [Registers.softReset.rawValue], timeoutMs: 100)
-        // Datasheet tSR (soft reset to idle) is 1ms max; round up to a full
-        // tick (see setup()) rather than relying on bus overhead alone.
-        vTaskDelay(.init(ms: 20))
+        // Datasheet tSR (soft reset to idle) is 1ms max; 20 ms covers it (see setup()).
+        Task.delay(ms: 20)
         try setup()
     }
 
@@ -79,11 +79,11 @@ public struct SHT40: ~Copyable {
         try device.transmit(data: [Registers.measureHighPrecision.rawValue], timeoutMs: 100)
 
         // Datasheet: typical 6.9ms, max 8.3ms conversion time. No busy bit to
-        // poll on this sensor — instead wait past the max (rounded up to a full
-        // tick, see setup()), then retry the read a few times. SHT40 NACKs a
+        // poll on this sensor — instead wait past the max (20 ms guarantees > 10 ms, see
+        // setup()), then retry the read a few times. SHT40 NACKs a
         // read header issued while still busy (datasheet §4.1), so a read that
         // lands slightly early is recoverable rather than fatal.
-        vTaskDelay(.init(ms: 20))
+        Task.delay(ms: 20)
 
         // Read 6 bytes: temp MSB, temp LSB, temp CRC, humidity MSB, humidity LSB, humidity CRC.
         var data: [UInt8]
@@ -98,7 +98,9 @@ public struct SHT40: ~Copyable {
                     log.w("SHT40 read failed after retries: \(error.name)")
                     throw error
                 }
-                vTaskDelay(.init(ms: 5))
+                // Not a spec minimum, but below one tick period this would only yield and burn
+                // all the retries back to back
+                Task.delay(ms: 10)
             }
         }
         guard crc8(data[0...1]) == data[2], crc8(data[3...4]) == data[5] else {
