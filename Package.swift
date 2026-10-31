@@ -30,7 +30,7 @@ let package = Package(
         .library(name: "SHT40", targets: ["SHT40"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/nixit22/esp-swift-platform.git", from: "0.1.0"),
+        .package(url: "https://github.com/nixit22/esp-swift-platform.git", from: "0.2.0"),
         .package(url: "https://github.com/nixit22/esp-swift-i2c.git", from: "0.1.0"),
     ],
     targets: [
